@@ -1184,25 +1184,25 @@ def merge_unmatched_into_views(unmatched_states, partitioner, org, import_file):
         raise ValueError("Unknown class '{}' passed to merge_unmatched_into_views".format(
             type(unmatched_states[0])))
 
-    class_views = ObjectViewClass.objects.filter(
-        state__organization=org,
-        cycle_id=current_match_cycle
-    ).select_related('state')
+    # Grabs all the views for this org (across all cycles)
+    class_views = ObjectViewClass.objects.filter(state__organization=org).select_related('state')
     existing_view_states = collections.defaultdict(dict)
-    existing_view_state_hashes = set()
+    view_state_hashes_in_cycle = set()
 
     # TODO #239: this is an expensive calculation
     for view in class_views:
         equivalence_can_key = partitioner.calculate_canonical_key(view.state)
         existing_view_states[equivalence_can_key][view.cycle] = view
-        existing_view_state_hashes.add(view.state.hash_object)
+
+        if view.cycle.id == current_match_cycle.id:
+            view_state_hashes_in_cycle.add(view.state.hash_object)
 
     matched_views = []
 
     merge_data = []
     promote_data = []
     for unmatched in unmatched_states:
-        if unmatched.hash_object in existing_view_state_hashes:
+        if unmatched.hash_object in view_state_hashes_in_cycle:
             # If an exact duplicate exists, delete the unmatched state
             unmatched.data_state = DATA_STATE_DELETE
             unmatched.save()
@@ -1222,7 +1222,8 @@ def merge_unmatched_into_views(unmatched_states, partitioner, org, import_file):
                         merge_data.append((current_view, unmatched))
                     else:
                         # Grab another view that has the same parent as the one we belong to.
-                        cousin_view = existing_view_states[key].values()[0]
+                        # It shouldn't matter which since these views should all have the same Property.
+                        cousin_view = list(existing_view_states[key].values())[0]
                         view_parent = getattr(cousin_view, ParentAttrName)
                         new_view = type(cousin_view)()
                         setattr(new_view, ParentAttrName, view_parent)

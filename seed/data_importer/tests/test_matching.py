@@ -21,6 +21,7 @@ from seed.models import (
     DATA_STATE_MAPPING,
     MERGE_STATE_MERGED,
     Column,
+    Cycle,
     PropertyAuditLog,
     PropertyState,
     PropertyView,
@@ -406,3 +407,105 @@ class TestMatching(DataMappingBaseTestCase):
             )
 
         # merge_unmatched_into_views(unmatched_states, partitioner, org, import_file):
+
+    def test_match_states_across_cycles(self):
+        """
+        Matching across cycles relies on the same matching logic as matching
+        within cycles tested above.
+
+        Because of that, this test will only test matching on
+        - address_line_1 for PropertyStates
+        - jurisdiction_tax_lot_id for TaxLotStates
+        rather than testing on different fields.
+        """
+
+        # Create 2 properties and 2 tax lots in first cycle
+        for i in range(2):
+            self.property_state_factory.get_property_state(
+                address_line_1='{} Evergreen Terrace'.format(i),
+                import_file_id=self.import_file.id,
+                data_state=DATA_STATE_MAPPING,
+            )
+
+        lot_numbers = '100;101'
+        for lot_number in lot_numbers.split(';'):
+            self.taxlot_state_factory.get_taxlot_state(
+                address_line_1=None,
+                jurisdiction_tax_lot_id=lot_number,
+                import_file_id=self.import_file.id,
+                data_state=DATA_STATE_MAPPING,
+            )
+
+        self.import_file.mapping_done = True
+        self.import_file.save()
+        match_buildings(self.import_file.id)
+
+        # Create new cycle and import_file within same org for new properties and tax lots
+        new_cycle, _ = Cycle.objects.get_or_create(
+            name='Test Hack Cycle 1984',
+            organization=self.org,
+            start=datetime.datetime(2015, 1, 1, tzinfo=tz.get_current_timezone()),
+            end=datetime.datetime(2015, 12, 31, tzinfo=tz.get_current_timezone()),
+        )
+
+        _import_record, new_import_file = self.create_import_file(
+            self.user, self.org, new_cycle
+        )
+
+        # Create 3 properties and 3 tax lots for new cycle (1 non-matching each)
+        for i in range(3):
+            self.property_state_factory.get_property_state(
+                address_line_1='{} Evergreen Terrace'.format(i),
+                import_file_id=new_import_file.id,
+                data_state=DATA_STATE_MAPPING,
+            )
+
+        lot_numbers = '100;101;109'
+        for lot_number in lot_numbers.split(';'):
+            self.taxlot_state_factory.get_taxlot_state(
+                address_line_1=None,
+                jurisdiction_tax_lot_id=lot_number,
+                import_file_id=new_import_file.id,
+                data_state=DATA_STATE_MAPPING,
+            )
+
+        new_import_file.mapping_done = True
+        new_import_file.save()
+        match_buildings(new_import_file.id)
+
+        # Check that -States are associated across Cycle by Property/TaxLot (via -Views)
+        # Each of those Property/TaxLots should have 2 Views associated to it now
+        pv0_new_cycle = PropertyView.objects.select_related('state').get(state__address_line_1='0 Evergreen Terrace', state__import_file_id=new_import_file.id)
+        pv0_old_cycle = PropertyView.objects.select_related('state').get(state__address_line_1='0 Evergreen Terrace', state__import_file_id=self.import_file.id)
+        self.assertEqual(pv0_new_cycle.property, pv0_old_cycle.property)
+        self.assertNotEqual(pv0_new_cycle.cycle, pv0_old_cycle.cycle)
+        self.assertEqual(pv0_new_cycle.property.views.count(), 2)
+
+        pv1_new_cycle = PropertyView.objects.select_related('state').get(state__address_line_1='1 Evergreen Terrace', state__import_file_id=new_import_file.id)
+        pv1_old_cycle = PropertyView.objects.select_related('state').get(state__address_line_1='1 Evergreen Terrace', state__import_file_id=self.import_file.id)
+        self.assertEqual(pv1_new_cycle.property, pv1_old_cycle.property)
+        self.assertNotEqual(pv1_new_cycle.cycle, pv1_old_cycle.cycle)
+        self.assertEqual(pv1_new_cycle.property.views.count(), 2)
+
+        tlv0_new_cycle = TaxLotView.objects.select_related('state').get(state__jurisdiction_tax_lot_id='100', state__import_file_id=new_import_file.id)
+        tlv0_old_cycle = TaxLotView.objects.select_related('state').get(state__jurisdiction_tax_lot_id='100', state__import_file_id=self.import_file.id)
+        self.assertEqual(tlv0_new_cycle.taxlot, tlv0_old_cycle.taxlot)
+        self.assertNotEqual(tlv0_new_cycle.cycle, tlv0_old_cycle.cycle)
+        self.assertEqual(tlv0_new_cycle.taxlot.views.count(), 2)
+
+        tlv1_new_cycle = TaxLotView.objects.select_related('state').get(state__jurisdiction_tax_lot_id='101', state__import_file_id=new_import_file.id)
+        tlv1_old_cycle = TaxLotView.objects.select_related('state').get(state__jurisdiction_tax_lot_id='101', state__import_file_id=self.import_file.id)
+        self.assertEqual(tlv1_new_cycle.taxlot, tlv1_old_cycle.taxlot)
+        self.assertNotEqual(tlv1_new_cycle.cycle, tlv1_old_cycle.cycle)
+        self.assertEqual(tlv1_new_cycle.taxlot.views.count(), 2)
+
+        # As before, a -State without a match should have its Property/TaxLot that has only 1 associated -View
+        pv2_new_cycle = PropertyView.objects.select_related('state').get(state__address_line_1='2 Evergreen Terrace', state__import_file_id=new_import_file.id)
+        self.assertNotEqual(pv2_new_cycle.property, pv0_old_cycle.property)
+        self.assertNotEqual(pv2_new_cycle.property, pv1_old_cycle.property)
+        self.assertEqual(pv2_new_cycle.property.views.count(), 1)
+
+        tlv9_new_cycle = TaxLotView.objects.select_related('state').get(state__jurisdiction_tax_lot_id='109', state__import_file_id=new_import_file.id)
+        self.assertNotEqual(tlv9_new_cycle.taxlot, tlv0_old_cycle.taxlot)
+        self.assertNotEqual(tlv9_new_cycle.taxlot, tlv1_old_cycle.taxlot)
+        self.assertEqual(tlv9_new_cycle.taxlot.views.count(), 1)
