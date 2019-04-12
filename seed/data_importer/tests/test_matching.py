@@ -19,6 +19,7 @@ from seed.data_importer.tasks import (
 from seed.models import (
     ASSESSED_RAW,
     DATA_STATE_MAPPING,
+    DATA_STATE_DELETE,
     MERGE_STATE_MERGED,
     Column,
     Cycle,
@@ -407,6 +408,43 @@ class TestMatching(DataMappingBaseTestCase):
             )
 
         # merge_unmatched_into_views(unmatched_states, partitioner, org, import_file):
+
+    def test_match_within_cycle_two_different_import_files(self):
+        ps_1 = self.property_state_factory.get_property_state(
+            no_default_data=True,
+            extra_data={'moniker': '12345'},
+            address_line_1='123 same address',
+            site_eui=25,
+            import_file_id=self.import_file.id,
+            data_state=DATA_STATE_MAPPING,
+        )
+
+        self.import_file.mapping_done = True
+        self.import_file.save()
+        match_buildings(self.import_file.id)
+
+        # Sanity check that only 1 PropertyView exists
+        self.assertEqual(1, PropertyView.objects.count())
+
+        _import_record, new_import_file = self.create_import_file(
+            self.user, self.org, self.cycle
+        )
+
+        ps_2 = PropertyState.objects.get(pk=ps_1.id)
+        ps_2.pk = None
+        ps_2.import_file_id = new_import_file.id
+        ps_2.data_state = DATA_STATE_MAPPING
+        ps_2.save()
+
+        new_import_file.mapping_done = True
+        new_import_file.save()
+        match_buildings(new_import_file.id)
+
+        refreshed_ps_2 = PropertyState.objects.get(import_file_id=new_import_file.id)
+
+        # still 1 PropertyView, latest State is marked for deletion
+        self.assertEqual(1, PropertyView.objects.count())
+        self.assertEqual(DATA_STATE_DELETE, refreshed_ps_2.data_state)
 
     def test_match_states_across_cycles(self):
         """
