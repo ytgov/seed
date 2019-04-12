@@ -1159,9 +1159,19 @@ def merge_unmatched_into_views(unmatched_states, partitioner, org, import_file):
     """
     This is fairly inefficient, because we grab all the organization's entire PropertyViews at once.
     Surely this can be improved, but the logic is unusual/particularly dynamic here, so hopefully
-    this can be refactored into a better, purely database approach... Perhaps existing_view_states
+    this can be refactored into a better, purely database approach... Perhaps class_view_equiv_keys
     can wrap database calls. Still the abstractions are subtly different (can I refactor the
     partitioner to use Query objects); it may require a bit of thinking.
+
+    Given two states, where one is being imported and the other already exists
+    in the organization:
+    - If both are within the same cycle, an EXACT match occurs if the
+    hash_objects are the same (all fields are equal). So disregard import state.
+    - If both are within the same cycle, a merge-triggering match occurs if any
+    of the "identity fields" match.
+    - If they are in different cycles, a match occurs if any of the
+    "identity fields" match. In this case, EXACT matching doesn't need to be
+    checked and, they should be associated by Property/TaxLot via -View.
 
     :param unmatched_states:
     :param partitioner:
@@ -1186,44 +1196,41 @@ def merge_unmatched_into_views(unmatched_states, partitioner, org, import_file):
 
     # Grabs all the views for this org (across all cycles)
     class_views = ObjectViewClass.objects.filter(state__organization=org).select_related('state')
-    existing_view_states = collections.defaultdict(dict)
-    view_state_hashes_in_cycle = set()
-
+    class_view_equiv_keys = collections.defaultdict(dict)
+    hashes_in_cycle = set()
     # TODO #239: this is an expensive calculation
     for view in class_views:
         equivalence_can_key = partitioner.calculate_canonical_key(view.state)
-        existing_view_states[equivalence_can_key][view.cycle] = view
+        class_view_equiv_keys[equivalence_can_key][view.cycle] = view
 
         if view.cycle.id == current_match_cycle.id:
-            view_state_hashes_in_cycle.add(view.state.hash_object)
+            hashes_in_cycle.add(view.state.hash_object)
 
     matched_views = []
 
     merge_data = []
     promote_data = []
     for unmatched in unmatched_states:
-        if unmatched.hash_object in view_state_hashes_in_cycle:
+        if unmatched.hash_object in hashes_in_cycle:
             # If an exact duplicate exists, delete the unmatched state
             unmatched.data_state = DATA_STATE_DELETE
             unmatched.save()
         else:
-            # Look to see if there is a match among the property states of the object.
-
-            # equiv_key = False
-            # equiv_can_key = partitioner.calculate_canonical_key(unmatched)
+            # If no exact duplicate exists, check if "match" exists in org
             equiv_cmp_key = partitioner.calculate_comparison_key(unmatched)
-            for key in existing_view_states:
+            for key in class_view_equiv_keys:
                 if partitioner.calculate_key_equivalence(key, equiv_cmp_key):
-                    if current_match_cycle in existing_view_states[key]:
-                        # There is an existing View for the current cycle that matches us.
+                    # Once a match is found, check if it's within the current cycle.
+                    if current_match_cycle in class_view_equiv_keys[key]:
                         # Merge the new state in with the existing one and update the view,
                         # audit log.
-                        current_view = existing_view_states[key][current_match_cycle]
+                        current_view = class_view_equiv_keys[key][current_match_cycle]
                         merge_data.append((current_view, unmatched))
                     else:
-                        # Grab another view that has the same parent as the one we belong to.
-                        # It shouldn't matter which since these views should all have the same Property.
-                        cousin_view = list(existing_view_states[key].values())[0]
+                        # In the case where the match is in a different cycle,
+                        # Associate this incoming record with another View that
+                        # has the same parent Property/TaxLot.
+                        cousin_view = list(class_view_equiv_keys[key].values())[0]
                         view_parent = getattr(cousin_view, ParentAttrName)
                         new_view = type(cousin_view)()
                         setattr(new_view, ParentAttrName, view_parent)
@@ -1237,7 +1244,7 @@ def merge_unmatched_into_views(unmatched_states, partitioner, org, import_file):
 
                     break
             else:
-                # Create a new object/view for the current object.
+                # A match doesn't exist in org, so create a new View for the current object.
                 promote_data.append((unmatched, current_match_cycle))
 
     # create the data atomically to speed it up
