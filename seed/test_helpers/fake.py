@@ -611,6 +611,8 @@ class FakeTaxLotFactory(BaseFake):
         if labels:
             for label in labels:
                 taxlot.labels.add(label)
+        elif labels is False:  # added condition to avoid forcing label additions
+            return taxlot
         else:
             taxlot.labels.add(
                 self.label_factory.get_statuslabel(organization=organization)
