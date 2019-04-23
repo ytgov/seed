@@ -118,12 +118,7 @@ class Command(BaseCommand):
                 first_view = matches.pop(0)
                 first_property = first_view.property
 
-                # instantiate running QS of labels
-                labels = first_property.labels.all()
                 for view in matches:
-                    # before updating view, update running labels QS
-                    labels = labels | view.property.labels.all()
-
                     pending_deletion.append(view.property.id)
                     view.property = first_property
                     # view.save()
@@ -132,9 +127,6 @@ class Command(BaseCommand):
                         view.save()
                     except:
                         import pdb; pdb.set_trace()
-
-                # update property labels
-                first_property.labels.set([l for l in labels])
 
         Property.objects.filter(id__in=pending_deletion).delete()  # Also deletes property_label records
 
@@ -177,18 +169,10 @@ class Command(BaseCommand):
             else:
                 first_taxlot = matches.pop(0).taxlot
 
-                # instantiate running QS of labels
-                labels = first_taxlot.labels.all()
                 for view in matches:
-                    # before updating view, update running labels QS
-                    labels = labels | view.taxlot.labels.all()
-
                     pending_deletion.append(view.taxlot.id)
                     view.taxlot = first_taxlot
                     view.save()
-
-                # update property labels
-                first_taxlot.labels.set([l for l in labels])
 
         TaxLot.objects.filter(id__in=pending_deletion).delete()  # Also deletes taxlot_label records
 

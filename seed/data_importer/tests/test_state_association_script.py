@@ -43,7 +43,7 @@ class StateAssociationTests(TestCase):
         associations were not set up previously, the setup for this is fairly
         long.
 
-        Specifically, it needs to be verified -Views and Labels have been
+        Specifically, it needs to be verified -Views have been
         disassociated and reassociated appropriately once this script is run.
 
         The following will be created:
@@ -58,23 +58,14 @@ class StateAssociationTests(TestCase):
             Properties:
             - 2 to be associated PropertyStates
             - 3 separate to be associated PropertyStates
-                - 3 labels (A, B, C)
-                    - 1 PS has label A
-                    - 1 PS has labels B and C
-                    - 1 PS has no labels
             - 3 PropertyStates with no associations (singles)
 
             TaxLots:
             - 2 to be associated TaxLotStates
             - 3 separate to be associated TaxLotStates
-                - 3 labels (A, B, C - same 3 referenced above)
-                    - 1 PS has label A
-                    - 1 PS has labels A and B
-                    - 1 PS has labels B and C
             - 3 TaxLotStates with no associations (singles)
 
-        Once associations are made, the orphaned Properties/TaxLots and their
-        individual Label relationships will be deleted.
+        Once associations are made, the orphaned Properties/TaxLots will be deleted.
         """
         # Create User
         user_details = {
@@ -87,11 +78,6 @@ class StateAssociationTests(TestCase):
 
         # Create Org
         org, _, _ = create_organization(user, org_name='Test Organization')
-
-        # Create Labels
-        label_a = org.labels.all()[:3][0]
-        label_b = org.labels.all()[:3][1]
-        label_c = org.labels.all()[:3][2]
 
         # Create Cycles
         cycle_2016, _ = Cycle.objects.get_or_create(
@@ -158,12 +144,10 @@ class StateAssociationTests(TestCase):
         p_view_2017_factory.get_property_view(prprty=property_2, state=p_state_2)
 
         # Group 2 - Cycles 2016, 2017, and 2018
-        # Also, associate Labels
         p_view_2016_factory.get_property_view(prprty=property_3, state=p_state_3)
-        property_3.labels.add(label_a)
+
         p_view_2017_factory.get_property_view(prprty=property_4, state=p_state_4)
-        property_4.labels.add(label_b)
-        property_4.labels.add(label_c)
+
         p_view_2018_factory.get_property_view(prprty=property_5, state=p_state_5)
 
         # Singles - Cycles 2016, 2017, and 2018
@@ -173,14 +157,14 @@ class StateAssociationTests(TestCase):
 
         # Create TaxLots, TaxLotsStates, and TaxLotsViews
         # Create TaxLots
-        taxlot_1 = tl_factory.get_taxlot(labels=False)
-        taxlot_2 = tl_factory.get_taxlot(labels=False)
-        taxlot_3 = tl_factory.get_taxlot(labels=False)
-        taxlot_4 = tl_factory.get_taxlot(labels=False)
-        taxlot_5 = tl_factory.get_taxlot(labels=False)
-        taxlot_6 = tl_factory.get_taxlot(labels=False)
-        taxlot_7 = tl_factory.get_taxlot(labels=False)
-        taxlot_8 = tl_factory.get_taxlot(labels=False)
+        taxlot_1 = tl_factory.get_taxlot()
+        taxlot_2 = tl_factory.get_taxlot()
+        taxlot_3 = tl_factory.get_taxlot()
+        taxlot_4 = tl_factory.get_taxlot()
+        taxlot_5 = tl_factory.get_taxlot()
+        taxlot_6 = tl_factory.get_taxlot()
+        taxlot_7 = tl_factory.get_taxlot()
+        taxlot_8 = tl_factory.get_taxlot()
 
         # Create to-be-associated TaxLotStates - Group 1
         tl_state_1 = tl_state_factory.get_taxlot_state(jurisdiction_tax_lot_id='100')
@@ -201,17 +185,11 @@ class StateAssociationTests(TestCase):
         tl_view_2016_factory.get_taxlot_view(taxlot=taxlot_1, state=tl_state_1)
         tl_view_2017_factory.get_taxlot_view(taxlot=taxlot_2, state=tl_state_2)
         # Group 2 - Cycles 2016, 2017, and 2018
-        # Also, associate Labels
         tl_view_2016_factory.get_taxlot_view(taxlot=taxlot_3, state=tl_state_3)
-        taxlot_3.labels.add(label_a)
 
         tl_view_2017_factory.get_taxlot_view(taxlot=taxlot_4, state=tl_state_4)
-        taxlot_4.labels.add(label_a)
-        taxlot_4.labels.add(label_b)
 
         tl_view_2018_factory.get_taxlot_view(taxlot=taxlot_5, state=tl_state_5)
-        taxlot_5.labels.add(label_b)
-        taxlot_5.labels.add(label_c)
 
         # Singles - Cycles 2016, 2017, and 2018
         tl_view_2016_factory.get_taxlot_view(taxlot=taxlot_6, state=tl_state_6)
@@ -238,12 +216,6 @@ class StateAssociationTests(TestCase):
         self.assertEqual(cycle_2016.taxlotview_set.count(), 3)
         self.assertEqual(cycle_2017.taxlotview_set.count(), 3)
         self.assertEqual(cycle_2018.taxlotview_set.count(), 2)
-
-        # There are a total of 3 PropertyLabel associations
-        self.assertEqual(Property.labels.through.objects.count(), 3)
-
-        # There are a total of 5 TaxLotLabel associations
-        self.assertEqual(TaxLot.labels.through.objects.count(), 5)
 
         """
         ----------------------------
@@ -274,22 +246,14 @@ class StateAssociationTests(TestCase):
         self.assertEqual(cycle_2017.taxlotview_set.count(), 3)
         self.assertEqual(cycle_2018.taxlotview_set.count(), 2)
 
-        # There are still a total of 3 PropertyLabel associations
-        self.assertEqual(Property.labels.through.objects.count(), 3)
-
-        # There should now be a total of 3 TaxLotLabel associations
-        self.assertEqual(TaxLot.labels.through.objects.count(), 3)
-
-        # Starting with Property objects, check PropertyState and Label associations
+        # Starting with Property objects, check PropertyState associations
         property_1_states = [state['state_id'] for state in property_1.views.select_related('state').values('state_id')]
         self.assertEqual(property_1_states, [p_state_1.pk, p_state_2.pk])
         property_2_states = [state['state_id'] for state in property_2.views.select_related('state').values('state_id')]
         self.assertEqual(property_2_states, [])
 
         property_3_states = [state['state_id'] for state in property_3.views.select_related('state').values('state_id')]
-        property_3_labels = [label.pk for label in property_3.labels.all()]
         self.assertEqual(property_3_states, [p_state_3.pk, p_state_4.pk, p_state_5.pk])
-        self.assertEqual(property_3_labels, [label_a.pk, label_b.pk, label_c. pk])
 
         property_4_states = [state['state_id'] for state in property_4.views.select_related('state').values('state_id')]
         self.assertEqual(property_4_states, [])
@@ -302,16 +266,14 @@ class StateAssociationTests(TestCase):
         property_8_states = [state['state_id'] for state in property_8.views.select_related('state').values('state_id')]
         self.assertEqual(property_8_states, [p_state_8.pk])
 
-        # Starting with TaxLot objects, check TaxLotState and Label associations
+        # Starting with TaxLot objects, check TaxLotState associations
         taxlot_1_states = [state['state_id'] for state in taxlot_1.views.select_related('state').values('state_id')]
         self.assertEqual(taxlot_1_states, [tl_state_1.pk, tl_state_2.pk])
         taxlot_2_states = [state['state_id'] for state in taxlot_2.views.select_related('state').values('state_id')]
         self.assertEqual(taxlot_2_states, [])
 
         taxlot_3_states = [state['state_id'] for state in taxlot_3.views.select_related('state').values('state_id')]
-        taxlot_3_labels = [label.pk for label in taxlot_3.labels.all()]
         self.assertEqual(taxlot_3_states, [tl_state_3.pk, tl_state_4.pk, tl_state_5.pk])
-        self.assertEqual(taxlot_3_labels, [label_a.pk, label_b.pk, label_c. pk])
 
         taxlot_4_states = [state['state_id'] for state in taxlot_4.views.select_related('state').values('state_id')]
         self.assertEqual(taxlot_4_states, [])
