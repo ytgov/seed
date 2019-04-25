@@ -24,7 +24,7 @@ def reassociate_labels_to_views(apps, schema_editor):
 class Migration(migrations.Migration):
 
     dependencies = [
-        ('seed', '0102_auto_20190331_1601'),
+        ('seed', '0102_auto_20190415_1115'),
     ]
 
     operations = [
