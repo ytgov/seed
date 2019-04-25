@@ -804,7 +804,7 @@ class InventoryViewTests(DeleteModelsTestCase):
         self.assertEqual(rtaxlot_view['id'], taxlot_view.pk)
         self.assertEqual(rtaxlot_view['labels'], [])
         self.assertDictContainsSubset(
-            {'id': taxlot.pk, 'organization': self.org.pk,},
+            {'id': taxlot.pk, 'organization': self.org.pk},
             rtaxlot_view['taxlot'],
         )
 
