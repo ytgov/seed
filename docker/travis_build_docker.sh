@@ -26,5 +26,5 @@ elif [ "${IMAGETAG}" != "skip" ] && [ "${TRAVIS_PULL_REQUEST}" == "false" ]; the
     docker push seedplatform/seed:$IMAGETAG
 
 else
-    echo "Not on a deployable branch or a valid pull request"
+    echo "Not on a deployable branch"
 fi
