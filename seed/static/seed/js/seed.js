@@ -50,7 +50,6 @@ angular.module('BE.seed.controllers', [
   'BE.seed.controller.data_upload_modal',
   'BE.seed.controller.dataset',
   'BE.seed.controller.dataset_detail',
-  'BE.seed.controller.delete_column_modal',
   'BE.seed.controller.delete_dataset_modal',
   'BE.seed.controller.delete_file_modal',
   'BE.seed.controller.delete_modal',

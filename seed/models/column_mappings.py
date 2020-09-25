@@ -69,10 +69,9 @@ def get_column_mapping(raw_column, organization, attr_name='column_mapped'):
         # list. Eventually delete this code.
         raise Exception("I am a LIST! Which makes no sense!")
 
-    # Should return zero when importing a column name the first time
-    # Should return one column if previously imported (table_name is blank to search only raw column names)
+    # Should only return one column
     cols = Column.objects.filter(
-        organization=organization, column_name__in=column_raw, table_name=''
+        organization=organization, column_name__in=column_raw
     )
 
     try:
