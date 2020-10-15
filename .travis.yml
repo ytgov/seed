@@ -51,6 +51,8 @@ before_script:
   - sudo service postgresql restart
   - psql -p 5433 -c "CREATE DATABASE seeddb;" -U postgres
   - psql -p 5433 -d seeddb -c "CREATE EXTENSION postgis;" -U postgres
+  # Temporary fix where a broken release is getting used. See: https://github.com/timescale/timescaledb/issues/2549
+  - psql -p 5433 -d seeddb -c "CREATE EXTENSION IF NOT EXISTS timescaledb VERSION '1.7.4';" -U postgres
   - free -tm
 env:
   global:
