@@ -51,8 +51,12 @@ before_script:
   - sudo service postgresql restart
   - psql -p 5433 -c "CREATE DATABASE seeddb;" -U postgres
   - psql -p 5433 -d seeddb -c "CREATE EXTENSION postgis;" -U postgres
-  # Temporary fix where a broken release is getting used. See: https://github.com/timescale/timescaledb/issues/2549
+  # -- TEMP FIX: a broken release for timescaledb is getting used. See: https://github.com/timescale/timescaledb/issues/2549
   - psql -p 5433 -d seeddb -c "CREATE EXTENSION IF NOT EXISTS timescaledb VERSION '1.7.4';" -U postgres
+  - psql -p 5433 -c "CREATE DATABASE test_seeddb;" -U postgres
+  - psql -p 5433 -d test_seeddb -c "CREATE EXTENSION IF NOT EXISTS postgis;" -U postgres
+  - psql -p 5433 -d test_seeddb -c "CREATE EXTENSION IF NOT EXISTS timescaledb VERSION '1.7.4';" -U postgres
+  # -- END TEMP FIX
   - free -tm
 env:
   global:
@@ -60,6 +64,7 @@ env:
     - DJANGO_SETTINGS_MODULE=config.settings.travis
     - DISPLAY=:99.0
     - COVERALLS_REPO_TOKEN=y8UqJm8Bri5ZP8hr3YZM3guBaUKpsfoCv
+    - REUSE_DB=true
     - secure: HtOAAxPiA2NnSxXTBsmmXlFURH6WxnXXeaJLkjKc8cPWMsPX2QSouggtFYCPJxikrvN6bOYvDii67v2++E0qpuPO28LtywaLWu7AdDYxJ+rp4ysVjdi2Pp1bh723SZj2Xi3OMOLPz/kekT41DLKtoEzmBUEFEBIuJ27oU/phNGU=
   matrix:
     - TOX_ENV=python
